@@ -1,0 +1,6 @@
+[package]
+name = "homework_module_one_ypbank"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
