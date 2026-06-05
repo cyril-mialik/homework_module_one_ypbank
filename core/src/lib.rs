@@ -3,22 +3,24 @@ mod csv_format;
 mod error;
 mod txt_format;
 
-pub use bin_format::BinParser;
-pub use csv_format::CsvParser;
-pub use error::*;
-pub use txt_format::TextParser;
+use std::io::Write;
 
-const DEPOSIT_TYPE: &str = "DEPOSIT";
-const WITHDRAWAL_TYPE: &str = "WITHDRAWAL";
-const TRANSFER_TYPE: &str = "TRANSFER";
+pub use bin_format::{BinParser, BinSerializer};
+pub use csv_format::{CsvParser, CsvSerializer};
+pub use error::*;
+pub use txt_format::{TextParser, TextSerializer};
+
+pub const DEPOSIT_TYPE: &str = "DEPOSIT";
+pub const WITHDRAWAL_TYPE: &str = "WITHDRAWAL";
+pub const TRANSFER_TYPE: &str = "TRANSFER";
 
 const DEPOSIT_TYPE_INDEX: u8 = 0;
 const WITHDRAWAL_TYPE_INDEX: u8 = 1;
 const TRANSFER_TYPE_INDEX: u8 = 2;
 
-const PENDING_STATUS: &str = "PENDING";
-const SUCCESS_STATUS: &str = "SUCCESS";
-const FAILURE_STATUS: &str = "FAILURE";
+pub const PENDING_STATUS: &str = "PENDING";
+pub const SUCCESS_STATUS: &str = "SUCCESS";
+pub const FAILURE_STATUS: &str = "FAILURE";
 
 const SUCCESS_STATUS_INDEX: u8 = 0;
 const FAILURE_STATUS_INDEX: u8 = 1;
@@ -26,6 +28,10 @@ const PENDING_STATUS_INDEX: u8 = 2;
 
 pub trait Parse {
     fn parse<R: std::io::Read>(&self, reader: &mut R) -> Result<Vec<Tx>, Error>;
+}
+
+pub trait Serialize {
+    fn serialize<W: Write>(&self, writer: &mut W, txs: &[Tx]) -> Result<(), Error>;
 }
 
 #[derive(Debug, PartialEq)]

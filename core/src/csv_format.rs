@@ -1,8 +1,9 @@
 use crate::{
-    CsvError, Error, InvalidStatus, InvalidTxType, Parse, ParseNumberError, Tx, TxAmount,
-    TxDescription, TxFromUserId, TxId, TxStatus, TxTimestamp, TxToUserId, TxType,
+    CsvError, DEPOSIT_TYPE, Error, FAILURE_STATUS, InvalidStatus, InvalidTxType, PENDING_STATUS,
+    Parse, ParseNumberError, SUCCESS_STATUS, Serialize, TRANSFER_TYPE, Tx, TxAmount, TxDescription,
+    TxFromUserId, TxId, TxStatus, TxTimestamp, TxToUserId, TxType, WITHDRAWAL_TYPE,
 };
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 
 const PARTS_TOTAL_LEN: usize = 8;
 const ID_PART: usize = 0;
@@ -97,7 +98,7 @@ impl Parse for CsvParser {
             let from_user_id = parse_number_part::<u64>(parts[FROM_USER_ID_PART], "FROM_USER_ID")?;
             let to_user_id = parse_number_part::<u64>(parts[TO_USER_ID_PART], "TO_USER_ID")?;
             let amount = parse_number_part::<i64>(parts[AMOUNT_PART], "AMOUNT")?;
-            let timestamp = parse_number_part::<u64>(parts[TIMESTAMP_PART],"TIMESTAMP")?;
+            let timestamp = parse_number_part::<u64>(parts[TIMESTAMP_PART], "TIMESTAMP")?;
 
             txs.push(Tx::new(
                 TxId(tx_id),
@@ -112,6 +113,60 @@ impl Parse for CsvParser {
         }
 
         Ok(txs)
+    }
+}
+
+pub struct CsvSerializer;
+
+impl CsvSerializer {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for CsvSerializer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Serialize for CsvSerializer {
+    fn serialize<W: Write>(&self, writer: &mut W, transactions: &[Tx]) -> Result<(), Error> {
+        writer.write_all(
+            b"TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION\n",
+        )?;
+
+        for tx in transactions {
+            let tx_type_str = match tx.tx_type {
+                TxType::Deposit => DEPOSIT_TYPE,
+                TxType::Transfer => TRANSFER_TYPE,
+                TxType::Withdrawal => WITHDRAWAL_TYPE,
+            };
+
+            let status_str = match tx.status {
+                TxStatus::Success => SUCCESS_STATUS,
+                TxStatus::Failure => FAILURE_STATUS,
+                TxStatus::Pending => PENDING_STATUS,
+            };
+
+            let description_escaped = tx.description.0.replace('"', "\"\"");
+
+            let line = format!(
+                "{},{},{},{},{},{},{},\"{}\"\n",
+                tx.tx_id.0,
+                tx_type_str,
+                tx.from_user_id.0,
+                tx.to_user_id.0,
+                tx.amount.0,
+                tx.timestamp.0,
+                status_str,
+                description_escaped,
+            );
+
+            writer.write_all(line.as_bytes())?;
+        }
+
+        Ok(())
     }
 }
 
@@ -169,5 +224,144 @@ mod tests {
                 actual: 7
             }))
         ));
+    }
+
+    #[test]
+    fn test_csv_serializer_basic() {
+        let tx1 = Tx::new(
+            TxId(1000000000000000),
+            TxType::Deposit,
+            TxFromUserId(0),
+            TxToUserId(9223372036854775807),
+            TxDescription("Record number 1".to_string()),
+            TxStatus::Failure,
+            TxTimestamp(1633036860000),
+            TxAmount(100),
+        );
+
+        let tx2 = Tx::new(
+            TxId(1000000000000001),
+            TxType::Transfer,
+            TxFromUserId(9223372036854775807),
+            TxToUserId(9223372036854775807),
+            TxDescription("Record number 2".to_string()),
+            TxStatus::Pending,
+            TxTimestamp(1633036920000),
+            TxAmount(200),
+        );
+
+        let transactions = vec![tx1, tx2];
+
+        let serializer = CsvSerializer::new();
+        let mut buffer = Vec::new();
+        serializer.serialize(&mut buffer, &transactions).unwrap();
+
+        let result = String::from_utf8(buffer).unwrap();
+        let expected = r#"TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+1000000000000000,DEPOSIT,0,9223372036854775807,100,1633036860000,FAILURE,"Record number 1"
+1000000000000001,TRANSFER,9223372036854775807,9223372036854775807,200,1633036920000,PENDING,"Record number 2"
+"#;
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_csv_serializer_empty() {
+        let transactions: Vec<Tx> = vec![];
+
+        let serializer = CsvSerializer::new();
+        let mut buffer = Vec::new();
+        serializer.serialize(&mut buffer, &transactions).unwrap();
+
+        let result = String::from_utf8(buffer).unwrap();
+        let expected =
+            "TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION\n";
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_csv_serializer_with_quotes_in_description() {
+        let tx = Tx::new(
+            TxId(123),
+            TxType::Deposit,
+            TxFromUserId(0),
+            TxToUserId(456),
+            TxDescription("Record with \"quotes\" inside".to_string()),
+            TxStatus::Success,
+            TxTimestamp(1633036860000),
+            TxAmount(100),
+        );
+
+        let transactions = vec![tx];
+
+        let serializer = CsvSerializer::new();
+        let mut buffer = Vec::new();
+        serializer.serialize(&mut buffer, &transactions).unwrap();
+
+        let result = String::from_utf8(buffer).unwrap();
+        let expected = r#"TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+123,DEPOSIT,0,456,100,1633036860000,SUCCESS,"Record with ""quotes"" inside"
+"#;
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_csv_serializer_all_statuses() {
+        let test_cases = vec![
+            (TxStatus::Success, "SUCCESS"),
+            (TxStatus::Failure, "FAILURE"),
+            (TxStatus::Pending, "PENDING"),
+        ];
+
+        for (status, expected_str) in test_cases {
+            let tx = Tx::new(
+                TxId(1),
+                TxType::Deposit,
+                TxFromUserId(0),
+                TxToUserId(1),
+                TxDescription("test".to_string()),
+                status,
+                TxTimestamp(1000),
+                TxAmount(10),
+            );
+
+            let serializer = CsvSerializer::new();
+            let mut buffer = Vec::new();
+            serializer.serialize(&mut buffer, &[tx]).unwrap();
+
+            let result = String::from_utf8(buffer).unwrap();
+            assert!(result.contains(&format!(",{},", expected_str)));
+        }
+    }
+
+    #[test]
+    fn test_csv_serializer_all_types() {
+        let test_cases = vec![
+            (TxType::Deposit, "DEPOSIT"),
+            (TxType::Transfer, "TRANSFER"),
+            (TxType::Withdrawal, "WITHDRAWAL"),
+        ];
+
+        for (tx_type, expected_str) in test_cases {
+            let tx = Tx::new(
+                TxId(1),
+                tx_type,
+                TxFromUserId(0),
+                TxToUserId(1),
+                TxDescription("test".to_string()),
+                TxStatus::Success,
+                TxTimestamp(1000),
+                TxAmount(10),
+            );
+
+            let serializer = CsvSerializer::new();
+            let mut buffer = Vec::new();
+            serializer.serialize(&mut buffer, &[tx]).unwrap();
+
+            let result = String::from_utf8(buffer).unwrap();
+            assert!(result.contains(&format!(",{},", expected_str)));
+        }
     }
 }

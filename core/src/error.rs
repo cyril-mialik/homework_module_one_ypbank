@@ -7,6 +7,11 @@ pub struct ParseNumberError {
     pub raw: String,
 }
 
+impl std::error::Error for Error {}
+impl std::error::Error for BinError {}
+impl std::error::Error for CsvError {}
+impl std::error::Error for TextError {}
+
 pub enum Error {
     Io(std::io::Error),
     Bin(BinError),
