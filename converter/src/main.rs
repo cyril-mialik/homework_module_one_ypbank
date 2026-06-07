@@ -1,16 +1,8 @@
 use clap::Parser;
-use core::{
-    BinParser, BinSerializer, CsvParser, CsvSerializer, Parse, Serialize, TextParser,
-    TextSerializer, Tx,
-};
+use core::{Format, Parse, Serialize, get_parser, get_serializer};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
-
-const CSV: &str = "csv";
-const BIN: &str = "bin";
-const TXT: &str = "txt";
-const TEXT: &str = "text";
 
 #[derive(Parser)]
 #[command(name = "converter")]
@@ -20,78 +12,6 @@ struct Cli {
     output_format: String,
     input_file: PathBuf,
     output_file: PathBuf,
-}
-
-#[derive(Debug, PartialEq)]
-enum Format {
-    Csv,
-    Bin,
-    Txt,
-}
-
-impl std::str::FromStr for Format {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            CSV => Ok(Format::Csv),
-            BIN => Ok(Format::Bin),
-            TXT | TEXT => Ok(Format::Txt),
-            _ => Err(format!("Unknown format: '{}'. Supported: csv, bin, txt", s)),
-        }
-    }
-}
-
-enum ParserEnum {
-    Csv(CsvParser),
-    Bin(BinParser),
-    Txt(TextParser),
-}
-
-impl Parse for ParserEnum {
-    fn parse<R: std::io::Read>(&self, reader: &mut R) -> Result<Vec<Tx>, core::Error> {
-        match self {
-            ParserEnum::Csv(p) => p.parse(reader),
-            ParserEnum::Bin(p) => p.parse(reader),
-            ParserEnum::Txt(p) => p.parse(reader),
-        }
-    }
-}
-
-fn get_parser(format: &Format) -> ParserEnum {
-    match format {
-        Format::Csv => ParserEnum::Csv(CsvParser::new()),
-        Format::Bin => ParserEnum::Bin(BinParser::new()),
-        Format::Txt => ParserEnum::Txt(TextParser::new()),
-    }
-}
-
-enum SerializerEnum {
-    Csv(CsvSerializer),
-    Bin(BinSerializer),
-    Txt(TextSerializer),
-}
-
-impl Serialize for SerializerEnum {
-    fn serialize<W: std::io::Write>(
-        &self,
-        writer: &mut W,
-        transactions: &[Tx],
-    ) -> Result<(), core::Error> {
-        match self {
-            SerializerEnum::Csv(s) => s.serialize(writer, transactions),
-            SerializerEnum::Bin(s) => s.serialize(writer, transactions),
-            SerializerEnum::Txt(s) => s.serialize(writer, transactions),
-        }
-    }
-}
-
-fn get_serializer(format: &Format) -> SerializerEnum {
-    match format {
-        Format::Csv => SerializerEnum::Csv(CsvSerializer::new()),
-        Format::Bin => SerializerEnum::Bin(BinSerializer::new()),
-        Format::Txt => SerializerEnum::Txt(TextSerializer::new()),
-    }
 }
 
 fn main() {
@@ -131,12 +51,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Successfully converted {} transactions", transactions.len());
     println!(
-        "  Input:  {} ({})",
+        "Input:  {} ({})",
         cli.input_file.display(),
         cli.input_format
     );
     println!(
-        "  Output: {} ({})",
+        "Output: {} ({})",
         cli.output_file.display(),
         cli.output_format
     );
@@ -148,8 +68,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use core::{
-        BinParser, BinSerializer, CsvParser, CsvSerializer, TextParser, TextSerializer, Tx,
-        TxAmount, TxDescription, TxFromUserId, TxId, TxStatus, TxTimestamp, TxToUserId, TxType,
+        BinParser, BinSerializer, CsvParser, CsvSerializer, ParserFormat, SerializerFormat,
+        TextParser, TextSerializer, Tx, TxAmount, TxDescription, TxFromUserId, TxId, TxStatus,
+        TxTimestamp, TxToUserId, TxType,
     };
     use std::io::Cursor;
 
@@ -194,24 +115,24 @@ mod tests {
 
     #[test]
     fn test_get_parser() {
-        assert!(matches!(get_parser(&Format::Csv), ParserEnum::Csv(_)));
-        assert!(matches!(get_parser(&Format::Bin), ParserEnum::Bin(_)));
-        assert!(matches!(get_parser(&Format::Txt), ParserEnum::Txt(_)));
+        assert!(matches!(get_parser(&Format::Csv), ParserFormat::Csv(_)));
+        assert!(matches!(get_parser(&Format::Bin), ParserFormat::Bin(_)));
+        assert!(matches!(get_parser(&Format::Txt), ParserFormat::Txt(_)));
     }
 
     #[test]
     fn test_get_serializer() {
         assert!(matches!(
             get_serializer(&Format::Csv),
-            SerializerEnum::Csv(_)
+            SerializerFormat::Csv(_)
         ));
         assert!(matches!(
             get_serializer(&Format::Bin),
-            SerializerEnum::Bin(_)
+            SerializerFormat::Bin(_)
         ));
         assert!(matches!(
             get_serializer(&Format::Txt),
-            SerializerEnum::Txt(_)
+            SerializerFormat::Txt(_)
         ));
     }
 
@@ -368,12 +289,12 @@ mod tests {
             .serialize(&mut csv_buffer, &transactions)
             .unwrap();
         let mut csv_reader = Cursor::new(csv_buffer);
-        let parser_enum = ParserEnum::Csv(CsvParser::new());
+        let parser_enum = ParserFormat::Csv(CsvParser::new());
         let result = parser_enum.parse(&mut csv_reader).unwrap();
         assert_eq!(result.len(), 2);
 
         let mut txt_buffer = Vec::new();
-        let serializer_enum = SerializerEnum::Txt(TextSerializer::new());
+        let serializer_enum = SerializerFormat::Txt(TextSerializer::new());
         serializer_enum
             .serialize(&mut txt_buffer, &transactions)
             .unwrap();

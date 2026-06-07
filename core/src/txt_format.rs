@@ -4,9 +4,10 @@ use crate::{
     TxTimestamp, TxToUserId, TxType, WITHDRAWAL_TYPE,
 };
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::str::FromStr;
 
-fn parse_required_number_field<T: std::str::FromStr>(
+fn parse_required_number_field<T: FromStr>(
     fields: &HashMap<String, String>,
     field_name: &str,
 ) -> Result<T, ParseNumberError> {
@@ -21,7 +22,7 @@ fn parse_required_number_field<T: std::str::FromStr>(
     })
 }
 
-fn parse_required_text_field<T: std::str::FromStr>(
+fn parse_required_text_field<T: FromStr>(
     fields: &HashMap<String, String>,
     field_name: &str,
 ) -> Result<T, TextError> {
@@ -59,11 +60,13 @@ impl TextParser {
 
         for line in lines {
             let line = line.trim();
+
             if line.is_empty() {
                 continue;
             }
 
             let parts: Vec<&str> = line.splitn(2, ':').collect();
+
             if parts.len() != 2 {
                 return Err(TextError::InvalidLineFormat(line.to_string()).into());
             }
@@ -151,7 +154,7 @@ impl Default for TextSerializer {
 }
 
 impl Serialize for TextSerializer {
-    fn serialize<W: std::io::Write>(
+    fn serialize<W: Write>(
         &self,
         writer: &mut W,
         transactions: &[Tx],

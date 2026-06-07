@@ -159,7 +159,9 @@ impl fmt::Display for CsvError {
                 "Invalid field count: expected {}, got {}",
                 expected, actual
             ),
-            CsvError::InvalidDescriptionFormat(field) => write!(f, "Invalid description format: {}", field),
+            CsvError::InvalidDescriptionFormat(field) => {
+                write!(f, "Invalid description format: {}", field)
+            }
         }
     }
 }
@@ -173,7 +175,9 @@ impl fmt::Debug for CsvError {
                 "InvalidFieldCount {{ expected: {}, actual: {} }}",
                 expected, actual
             ),
-            CsvError::InvalidDescriptionFormat(field) => write!(f, "InvalidDescriptionFormat({:?})", field),
+            CsvError::InvalidDescriptionFormat(field) => {
+                write!(f, "InvalidDescriptionFormat({:?})", field)
+            }
         }
     }
 }

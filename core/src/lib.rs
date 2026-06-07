@@ -3,31 +3,53 @@ mod csv_format;
 mod error;
 mod txt_format;
 
-use std::io::Write;
+use std::io::{Read, Write};
+use std::str::FromStr;
 
+pub use error::*;
 pub use bin_format::{BinParser, BinSerializer};
 pub use csv_format::{CsvParser, CsvSerializer};
-pub use error::*;
 pub use txt_format::{TextParser, TextSerializer};
 
 pub const DEPOSIT_TYPE: &str = "DEPOSIT";
 pub const WITHDRAWAL_TYPE: &str = "WITHDRAWAL";
 pub const TRANSFER_TYPE: &str = "TRANSFER";
 
-const DEPOSIT_TYPE_INDEX: u8 = 0;
-const WITHDRAWAL_TYPE_INDEX: u8 = 1;
-const TRANSFER_TYPE_INDEX: u8 = 2;
-
 pub const PENDING_STATUS: &str = "PENDING";
 pub const SUCCESS_STATUS: &str = "SUCCESS";
 pub const FAILURE_STATUS: &str = "FAILURE";
+
+pub const CSV: &str = "csv";
+pub const BIN: &str = "bin";
+pub const TXT: &str = "txt";
+pub const TEXT: &str = "text";
+
+const DEPOSIT_TYPE_INDEX: u8 = 0;
+const WITHDRAWAL_TYPE_INDEX: u8 = 1;
+const TRANSFER_TYPE_INDEX: u8 = 2;
 
 const SUCCESS_STATUS_INDEX: u8 = 0;
 const FAILURE_STATUS_INDEX: u8 = 1;
 const PENDING_STATUS_INDEX: u8 = 2;
 
+pub fn get_parser(format: &Format) -> ParserFormat {
+    match format {
+        Format::Csv => ParserFormat::Csv(CsvParser::new()),
+        Format::Bin => ParserFormat::Bin(BinParser::new()),
+        Format::Txt => ParserFormat::Txt(TextParser::new()),
+    }
+}
+
+pub fn get_serializer(format: &Format) -> SerializerFormat {
+    match format {
+        Format::Csv => SerializerFormat::Csv(CsvSerializer::new()),
+        Format::Bin => SerializerFormat::Bin(BinSerializer::new()),
+        Format::Txt => SerializerFormat::Txt(TextSerializer::new()),
+    }
+}
+
 pub trait Parse {
-    fn parse<R: std::io::Read>(&self, reader: &mut R) -> Result<Vec<Tx>, Error>;
+    fn parse<R: Read>(&self, reader: &mut R) -> Result<Vec<Tx>, Error>;
 }
 
 pub trait Serialize {
@@ -35,13 +57,70 @@ pub trait Serialize {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Format {
+    Csv,
+    Bin,
+    Txt,
+}
+
+impl FromStr for Format {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            CSV => Ok(Format::Csv),
+            BIN => Ok(Format::Bin),
+            TXT | TEXT => Ok(Format::Txt),
+            _ => Err(format!("Unknown format: '{}'. Supported: csv, bin, txt", s)),
+        }
+    }
+}
+
+pub enum ParserFormat {
+    Csv(CsvParser),
+    Bin(BinParser),
+    Txt(TextParser),
+}
+
+impl Parse for ParserFormat {
+    fn parse<R: std::io::Read>(&self, reader: &mut R) -> Result<Vec<Tx>, Error> {
+        match self {
+            ParserFormat::Csv(p) => p.parse(reader),
+            ParserFormat::Bin(p) => p.parse(reader),
+            ParserFormat::Txt(p) => p.parse(reader),
+        }
+    }
+}
+
+
+pub enum SerializerFormat {
+    Csv(CsvSerializer),
+    Bin(BinSerializer),
+    Txt(TextSerializer),
+}
+
+impl Serialize for SerializerFormat {
+    fn serialize<W: std::io::Write>(
+        &self,
+        writer: &mut W,
+        transactions: &[Tx],
+    ) -> Result<(), Error> {
+        match self {
+            SerializerFormat::Csv(s) => s.serialize(writer, transactions),
+            SerializerFormat::Bin(s) => s.serialize(writer, transactions),
+            SerializerFormat::Txt(s) => s.serialize(writer, transactions),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum TxType {
     Deposit,
     Transfer,
     Withdrawal,
 }
 
-impl std::str::FromStr for TxType {
+impl FromStr for TxType {
     type Err = InvalidTxType;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -77,14 +156,14 @@ impl From<&TxType> for u8 {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TxStatus {
     Pending,
     Success,
     Failure,
 }
 
-impl std::str::FromStr for TxStatus {
+impl FromStr for TxStatus {
     type Err = InvalidStatus;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -120,25 +199,25 @@ impl From<&TxStatus> for u8 {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TxId(pub u64);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TxFromUserId(pub u64);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TxToUserId(pub u64);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TxAmount(pub i64);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TxTimestamp(pub u64);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TxDescription(pub String);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Tx {
     pub tx_type: TxType,
     pub tx_id: TxId,
