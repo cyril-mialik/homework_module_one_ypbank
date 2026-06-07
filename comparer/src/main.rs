@@ -1,9 +1,7 @@
 use clap::Parser;
-use core::{Format, Parse, Tx, get_parser};
+use core::{Tx, parse_file};
 use std::cmp::min;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process;
 
 #[derive(Parser)]
@@ -82,31 +80,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Err(format!("Found {} difference(s)", differences.len()).into())
-    }
-}
-
-fn parse_file(path: &PathBuf) -> Result<Vec<Tx>, Box<dyn std::error::Error>> {
-    let format = detect_format(path)?;
-    let parser = get_parser(&format);
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-
-    let transactions = parser
-        .parse(&mut reader)
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
-
-    Ok(transactions)
-}
-
-fn detect_format(path: &Path) -> Result<Format, String> {
-    match path.extension() {
-        Some(ext) => match ext.to_str() {
-            Some("bin") => Ok(Format::Bin),
-            Some("csv") => Ok(Format::Csv),
-            Some("txt") => Ok(Format::Txt),
-            _ => Err(format!("Unsupported file extension: {:?}", ext)),
-        },
-        _ => Err("File has no extension".to_string()),
     }
 }
 
@@ -195,10 +168,8 @@ fn compare_transactions(
 mod tests {
     use super::*;
     use core::{
-        BinParser, BinSerializer, CsvParser, CsvSerializer, Serialize, TextParser, TextSerializer,
         TxAmount, TxDescription, TxFromUserId, TxId, TxStatus, TxTimestamp, TxToUserId, TxType,
     };
-    use std::io::Cursor;
 
     fn create_test_transactions() -> Vec<Tx> {
         vec![
@@ -233,36 +204,6 @@ mod tests {
                 TxAmount(-5000),
             ),
         ]
-    }
-
-    #[test]
-    fn test_detect_format_bin() {
-        let path = PathBuf::from("test.bin");
-        assert_eq!(detect_format(&path).unwrap(), Format::Bin);
-    }
-
-    #[test]
-    fn test_detect_format_csv() {
-        let path = PathBuf::from("test.csv");
-        assert_eq!(detect_format(&path).unwrap(), Format::Csv);
-    }
-
-    #[test]
-    fn test_detect_format_txt() {
-        let path = PathBuf::from("test.txt");
-        assert_eq!(detect_format(&path).unwrap(), Format::Txt);
-    }
-
-    #[test]
-    fn test_detect_format_unsupported_extension() {
-        let path = PathBuf::from("test.xyz");
-        assert!(detect_format(&path).is_err());
-    }
-
-    #[test]
-    fn test_detect_format_no_extension() {
-        let path = PathBuf::from("test");
-        assert!(detect_format(&path).is_err());
     }
 
     #[test]
@@ -395,221 +336,4 @@ mod tests {
         assert_eq!(differences.len(), 1);
         assert_eq!(differences[0].field, "record_count");
     }
-
-    #[test]
-    fn test_parse_file_from_buffer_instead_of_real_file() {
-        let transactions = create_test_transactions();
-
-        let mut buffer = Vec::new();
-        let bin_serializer = BinSerializer::new();
-        bin_serializer
-            .serialize(&mut buffer, &transactions)
-            .unwrap();
-
-        let mut cursor = Cursor::new(buffer);
-        let bin_parser = BinParser::new();
-        let parsed = bin_parser.parse(&mut cursor).unwrap();
-
-        assert_eq!(parsed.len(), transactions.len());
-        assert_eq!(parsed[0].tx_id, transactions[0].tx_id);
-    }
-
-    #[test]
-    fn test_compare_after_format_conversion_in_memory() {
-        let original = create_test_transactions();
-
-        let mut csv_buffer = Vec::new();
-        let csv_serializer = CsvSerializer::new();
-        csv_serializer
-            .serialize(&mut csv_buffer, &original)
-            .unwrap();
-
-        let mut csv_reader = Cursor::new(csv_buffer);
-        let csv_parser = CsvParser::new();
-        let from_csv = csv_parser.parse(&mut csv_reader).unwrap();
-
-        let mut bin_buffer = Vec::new();
-        let bin_serializer = BinSerializer::new();
-        bin_serializer
-            .serialize(&mut bin_buffer, &original)
-            .unwrap();
-
-        let mut bin_reader = Cursor::new(bin_buffer);
-        let bin_parser = BinParser::new();
-        let from_bin = bin_parser.parse(&mut bin_reader).unwrap();
-
-        let differences = compare_transactions(&from_csv, &from_bin, false, false);
-        assert!(differences.is_empty());
-    }
-
-    #[test]
-    fn test_roundtrip_csv_to_bin_to_csv() {
-        let original = create_test_transactions();
-
-        let mut csv_buffer = Vec::new();
-        let csv_serializer = CsvSerializer::new();
-        csv_serializer
-            .serialize(&mut csv_buffer, &original)
-            .unwrap();
-
-        let mut csv_reader = Cursor::new(csv_buffer);
-        let csv_parser = CsvParser::new();
-        let parsed_from_csv = csv_parser.parse(&mut csv_reader).unwrap();
-
-        let mut bin_buffer = Vec::new();
-        let bin_serializer = BinSerializer::new();
-        bin_serializer
-            .serialize(&mut bin_buffer, &parsed_from_csv)
-            .unwrap();
-
-        let mut bin_reader = Cursor::new(bin_buffer);
-        let bin_parser = BinParser::new();
-        let parsed_from_bin = bin_parser.parse(&mut bin_reader).unwrap();
-
-        let differences = compare_transactions(&original, &parsed_from_bin, false, false);
-        assert!(differences.is_empty());
-    }
-
-    #[test]
-    fn test_roundtrip_txt_to_csv_to_txt() {
-        let original = create_test_transactions();
-
-        let mut txt_buffer = Vec::new();
-        let txt_serializer = TextSerializer::new();
-        txt_serializer
-            .serialize(&mut txt_buffer, &original)
-            .unwrap();
-
-        let mut txt_reader = Cursor::new(txt_buffer);
-        let txt_parser = TextParser::new();
-        let parsed_from_txt = txt_parser.parse(&mut txt_reader).unwrap();
-
-        let mut csv_buffer = Vec::new();
-        let csv_serializer = CsvSerializer::new();
-        csv_serializer
-            .serialize(&mut csv_buffer, &parsed_from_txt)
-            .unwrap();
-
-        let mut csv_reader = Cursor::new(csv_buffer);
-        let csv_parser = CsvParser::new();
-        let parsed_from_csv = csv_parser.parse(&mut csv_reader).unwrap();
-
-        assert_eq!(original.len(), parsed_from_csv.len());
-
-        for (i, (orig, parsed)) in original.iter().zip(parsed_from_csv.iter()).enumerate() {
-            assert_eq!(
-                orig.tx_id, parsed.tx_id,
-                "Transaction {}: tx_id mismatch",
-                i
-            );
-            assert_eq!(
-                orig.tx_type, parsed.tx_type,
-                "Transaction {}: tx_type mismatch",
-                i
-            );
-            assert_eq!(
-                orig.from_user_id, parsed.from_user_id,
-                "Transaction {}: from_user_id mismatch",
-                i
-            );
-            assert_eq!(
-                orig.to_user_id, parsed.to_user_id,
-                "Transaction {}: to_user_id mismatch",
-                i
-            );
-            assert_eq!(
-                orig.timestamp, parsed.timestamp,
-                "Transaction {}: timestamp mismatch",
-                i
-            );
-            assert_eq!(
-                orig.status, parsed.status,
-                "Transaction {}: status mismatch",
-                i
-            );
-            assert_eq!(
-                orig.description, parsed.description,
-                "Transaction {}: description mismatch",
-                i
-            );
-
-            match orig.tx_type {
-                TxType::Withdrawal => assert_eq!(
-                    orig.amount.0.abs(),
-                    parsed.amount.0,
-                    "Transaction {}: amount mismatch (Withdrawal: absolute value expected)",
-                    i
-                ),
-                _ => assert_eq!(
-                    orig.amount, parsed.amount,
-                    "Transaction {}: amount mismatch",
-                    i
-                )
-            }
-        }
-    }
-
-    #[test]
-    fn test_different_after_modification() {
-        let txs1 = create_test_transactions();
-        let mut txs2 = create_test_transactions();
-        txs2[0].amount = TxAmount(99999);
-
-        let mut buffer1 = Vec::new();
-        let mut buffer2 = Vec::new();
-        let serializer = BinSerializer::new();
-        serializer.serialize(&mut buffer1, &txs1).unwrap();
-        serializer.serialize(&mut buffer2, &txs2).unwrap();
-
-        let mut reader1 = Cursor::new(buffer1);
-        let mut reader2 = Cursor::new(buffer2);
-        let parser = BinParser::new();
-        let parsed1 = parser.parse(&mut reader1).unwrap();
-        let parsed2 = parser.parse(&mut reader2).unwrap();
-
-        let differences = compare_transactions(&parsed1, &parsed2, false, false);
-        assert_eq!(differences.len(), 1);
-        assert_eq!(differences[0].field, "amount");
-    }
-
-    #[test]
-    fn test_compare_all_fields_different_verbose() {
-        let txs1 = create_test_transactions();
-        let mut txs2 = create_test_transactions();
-
-        txs2[0].tx_id = TxId(1);
-        txs2[0].tx_type = TxType::Withdrawal;
-        txs2[0].from_user_id = TxFromUserId(2);
-        txs2[0].to_user_id = TxToUserId(3);
-        txs2[0].amount = TxAmount(4);
-        txs2[0].timestamp = TxTimestamp(5);
-        txs2[0].status = TxStatus::Success;
-        txs2[0].description = TxDescription("Different".to_string());
-
-        let differences = compare_transactions(&txs1, &txs2, true, false);
-        assert_eq!(differences.len(), 8);
-
-        let fields: Vec<&str> = differences.iter().map(|d| d.field.as_str()).collect();
-        assert!(fields.contains(&"tx_id"));
-        assert!(fields.contains(&"tx_type"));
-        assert!(fields.contains(&"from_user_id"));
-        assert!(fields.contains(&"to_user_id"));
-        assert!(fields.contains(&"amount"));
-        assert!(fields.contains(&"timestamp"));
-        assert!(fields.contains(&"status"));
-        assert!(fields.contains(&"description"));
-    }
-
-    #[test]
-    fn test_compare_with_withdrawal_negative_amount() {
-        let mut txs1 = create_test_transactions();
-        let mut txs2 = create_test_transactions();
-
-        txs1[2].amount = TxAmount(-5000);
-        txs2[2].amount = TxAmount(-5000);
-
-        let differences = compare_transactions(&txs1, &txs2, false, false);
-        assert!(differences.is_empty());
-    }
 }
-

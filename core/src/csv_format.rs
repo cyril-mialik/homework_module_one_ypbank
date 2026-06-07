@@ -1,3 +1,36 @@
+//! CSV format parser and serializer for transaction data
+//!
+//! This module implements parsing and serialization of transaction data
+//! in CSV (Comma-Separated Values) format.
+//!
+//! # CSV Format Specification
+//!
+//! The CSV format uses the following structure:
+//!
+//! - Header row with field names (required)
+//! - One transaction per row
+//! - Fields separated by commas
+//! - Description field enclosed in double quotes
+//! - Quotes inside description escaped by doubling ("" -> "")
+//!
+//! ## Header
+//! ```text
+//! TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+//! ```
+//!
+//! ## Example
+//! ```csv
+//! TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+//! 1000000000000000,DEPOSIT,0,9223372036854775807,100,1633036860000,FAILURE,"Record number 1"
+//! ```
+//!
+//! # Example
+//! ```
+//! use core::{CsvParser, CsvSerializer, Tx};
+//!
+//! let parser = CsvParser::new();
+//! let serializer = CsvSerializer::new();
+//! ```
 use crate::{
     CsvError, DEPOSIT_TYPE, Error, FAILURE_STATUS, InvalidStatus, InvalidTxType, PENDING_STATUS,
     Parse, ParseNumberError, SUCCESS_STATUS, Serialize, TRANSFER_TYPE, Tx, TxAmount, TxDescription,

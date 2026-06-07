@@ -1,3 +1,53 @@
+//! Text format parser and serializer for transaction data
+//!
+//! This module implements parsing and serialization of transaction data
+//! in a human-readable key-value text format.
+//!
+//! # Text Format Specification
+//!
+//! The text format uses a key-value structure with the following features:
+//!
+//! - Records separated by blank lines
+//! - Comments start with '#'
+//! - Fields in format: `FIELD_NAME: value`
+//! - No strict field order required
+//! - All fields are required for each record
+//!
+//! ## Required Fields
+//! - `TX_ID`: Unique transaction identifier
+//! - `TX_TYPE`: Transaction type (DEPOSIT, TRANSFER, WITHDRAWAL)
+//! - `FROM_USER_ID`: Source user identifier
+//! - `TO_USER_ID`: Destination user identifier
+//! - `AMOUNT`: Transaction amount
+//! - `TIMESTAMP`: Unix timestamp in milliseconds
+//! - `STATUS`: Transaction status (SUCCESS, FAILURE, PENDING)
+//! - `DESCRIPTION`: Transaction description (enclosed in quotes)
+//!
+//! ## Example
+//! ```text
+//! # Record 1
+//! TX_ID: 1000000000000000
+//! TX_TYPE: DEPOSIT
+//! FROM_USER_ID: 0
+//! TO_USER_ID: 9223372036854775807
+//! AMOUNT: 100
+//! TIMESTAMP: 1633036860000
+//! STATUS: FAILURE
+//! DESCRIPTION: "Record number 1"
+//!
+//! # Record 2
+//! TX_ID: 1000000000000001
+//! TX_TYPE: TRANSFER
+//! ...
+//! ```
+//!
+//! # Example
+//! ```
+//! use core::{TextParser, TextSerializer, Tx};
+//!
+//! let parser = TextParser::new();
+//! let serializer = TextSerializer::new();
+//! ```
 use crate::{
     DEPOSIT_TYPE, Error, FAILURE_STATUS, PENDING_STATUS, Parse, ParseNumberError, SUCCESS_STATUS,
     Serialize, TRANSFER_TYPE, TextError, Tx, TxAmount, TxDescription, TxFromUserId, TxId, TxStatus,

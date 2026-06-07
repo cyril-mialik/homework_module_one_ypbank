@@ -1,24 +1,50 @@
+//! Error handling for the core library
+//!
+//! This module defines all error types used throughout the core library,
+//! including format-specific errors (binary, CSV, text) and general
+//! parsing errors for transactions, types, and statuses.
+
 use std::fmt;
 
+/// Error indicating an invalid transaction type string
+#[derive(Debug)]
 pub struct InvalidTxType(pub String);
+
+/// Error indicating an invalid status string
+#[derive(Debug)]
 pub struct InvalidStatus(pub String);
+
+/// Error indicating a failure to parse a numeric field
 pub struct ParseNumberError {
+    /// Name of the field that failed to parse
     pub field: String,
+    /// Raw string value that couldn't be parsed
     pub raw: String,
 }
 
+// Error trait implementations for all error types
 impl std::error::Error for Error {}
 impl std::error::Error for BinError {}
 impl std::error::Error for CsvError {}
 impl std::error::Error for TextError {}
 
+/// Main error enum for the core library
+///
+/// Wraps all possible errors that can occur during parsing and serialization
 pub enum Error {
+    /// I/O operation error
     Io(std::io::Error),
+    /// Binary format error
     Bin(BinError),
+    /// CSV format error
     Csv(CsvError),
+    /// Text format error
     Text(TextError),
+    /// Invalid transaction type error
     InvalidTxType(InvalidTxType),
+    /// Invalid status error
     InvalidStatus(InvalidStatus),
+    /// Number parsing error
     ParseNumberError(ParseNumberError),
 }
 
@@ -54,6 +80,7 @@ impl fmt::Debug for Error {
     }
 }
 
+// From trait implementations for automatic error conversion
 impl From<BinError> for Error {
     fn from(err: BinError) -> Self {
         Error::Bin(err)
@@ -96,11 +123,17 @@ impl From<ParseNumberError> for Error {
     }
 }
 
+/// Binary format-specific errors
 pub enum BinError {
+    /// Invalid magic bytes at the beginning of a record
     InvalidMagic([u8; 4]),
+    /// Record size mismatch between header and actual data
     InvalidRecordSize { expected: u32, actual: u32 },
+    /// Description length doesn't match the declared length
     DescriptionLengthMismatch { expected: u32, actual: usize },
+    /// Invalid transaction type byte value
     InvalidTxType(u8),
+    /// Invalid status byte value
     InvalidStatus(u8),
 }
 
@@ -144,9 +177,13 @@ impl fmt::Debug for BinError {
     }
 }
 
+/// CSV format-specific errors
 pub enum CsvError {
+    /// Invalid or missing CSV header
     InvalidHeader,
+    /// Wrong number of fields in a CSV row
     InvalidFieldCount { expected: usize, actual: usize },
+    /// Invalid description field format
     InvalidDescriptionFormat(String),
 }
 
@@ -182,9 +219,13 @@ impl fmt::Debug for CsvError {
     }
 }
 
+/// Text format-specific errors
 pub enum TextError {
+    /// Required field is missing
     MissingField(String),
+    /// Duplicate field found in a record
     DuplicateField(String),
+    /// Invalid line format (doesn't contain a colon)
     InvalidLineFormat(String),
 }
 

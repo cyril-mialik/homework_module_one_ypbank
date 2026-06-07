@@ -1,3 +1,34 @@
+//! Binary format parser and serializer for transaction data
+//!
+//! This module implements a custom binary format for efficient storage and
+//! transmission of transaction data. The format uses big-endian encoding
+//! and includes magic bytes for validation.
+//!
+//! # Binary Format Specification
+//!
+//! Each record has the following structure:
+//!
+//! | Field | Size (bytes) | Description |
+//! |-------|--------------|-------------|
+//! | Magic | 4 | Fixed magic bytes [0x59, 0x50, 0x42, 0x4E] ("YPBN") |
+//! | Record Size | 4 | Total size of the record data (excluding magic and size fields) |
+//! | TX ID | 8 | Unique transaction identifier |
+//! | TX Type | 1 | Transaction type (0=Deposit, 1=Withdrawal, 2=Transfer) |
+//! | From User ID | 8 | Source user identifier |
+//! | To User ID | 8 | Destination user identifier |
+//! | Amount | 8 | Transaction amount (signed integer) |
+//! | Timestamp | 8 | Unix timestamp in milliseconds |
+//! | Status | 1 | Transaction status (0=Success, 1=Failure, 2=Pending) |
+//! | Description Length | 4 | Length of the description string |
+//! | Description | Variable | UTF-8 encoded description text |
+//!
+//! # Example
+//! ```
+//! use core::{BinParser, BinSerializer, Tx};
+//!
+//! let parser = BinParser::new();
+//! let serializer = BinSerializer::new();
+//! ```
 use crate::{
     BinError, Error, Parse, Serialize, Tx, TxAmount, TxDescription, TxFromUserId, TxId, TxStatus,
     TxTimestamp, TxToUserId, TxType,

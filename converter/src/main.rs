@@ -1,5 +1,5 @@
 use clap::Parser;
-use core::{Format, Parse, Serialize, get_parser, get_serializer};
+use core::{Parse, Serialize, get_parser, get_serializer, detect_format};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
@@ -8,8 +8,6 @@ use std::path::PathBuf;
 #[command(name = "converter")]
 #[command(about = "Convert transaction files between CSV, binary, and text formats", long_about = None)]
 struct Cli {
-    input_format: String,
-    output_format: String,
     input_file: PathBuf,
     output_file: PathBuf,
 }
@@ -24,12 +22,12 @@ fn main() {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let input_format: Format = cli.input_format.parse()?;
-    let output_format: Format = cli.output_format.parse()?;
-
     if !cli.input_file.exists() {
         return Err(format!("Input file not found: {}", cli.input_file.display()).into());
     }
+
+    let input_format = detect_format(&cli.input_file)?;
+    let output_format = detect_format(&cli.output_file)?;
 
     let input_file = File::open(&cli.input_file)?;
     let mut reader = BufReader::new(input_file);
@@ -51,14 +49,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Successfully converted {} transactions", transactions.len());
     println!(
-        "Input:  {} ({})",
+        "Input:  {} ({:?})",
         cli.input_file.display(),
-        cli.input_format
+        input_format
     );
     println!(
-        "Output: {} ({})",
+        "Output: {} ({:?})",
         cli.output_file.display(),
-        cli.output_format
+        output_format
     );
 
     Ok(())
@@ -68,7 +66,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use core::{
-        BinParser, BinSerializer, CsvParser, CsvSerializer, ParserFormat, SerializerFormat,
+        Format, BinParser, BinSerializer, CsvParser, CsvSerializer, ParserFormat, SerializerFormat,
         TextParser, TextSerializer, Tx, TxAmount, TxDescription, TxFromUserId, TxId, TxStatus,
         TxTimestamp, TxToUserId, TxType,
     };
@@ -97,20 +95,6 @@ mod tests {
                 TxAmount(200),
             ),
         ]
-    }
-
-    #[test]
-    fn test_format_parsing() {
-        assert_eq!("csv".parse::<Format>().unwrap(), Format::Csv);
-        assert_eq!("bin".parse::<Format>().unwrap(), Format::Bin);
-        assert_eq!("txt".parse::<Format>().unwrap(), Format::Txt);
-        assert_eq!("text".parse::<Format>().unwrap(), Format::Txt);
-        assert_eq!("CSV".parse::<Format>().unwrap(), Format::Csv);
-        assert_eq!("BIN".parse::<Format>().unwrap(), Format::Bin);
-        assert_eq!("TXT".parse::<Format>().unwrap(), Format::Txt);
-
-        assert!("unknown".parse::<Format>().is_err());
-        assert!("".parse::<Format>().is_err());
     }
 
     #[test]
