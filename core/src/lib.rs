@@ -312,22 +312,27 @@ impl From<&TxStatus> for u8 {
     }
 }
 
-// Type aliases for transaction fields
+/// Unique transaction identifier
 #[derive(Debug, PartialEq, Clone)]
 pub struct TxId(pub u64);
 
+/// Source user identifier (0 for deposits)
 #[derive(Debug, PartialEq, Clone)]
 pub struct TxFromUserId(pub u64);
 
+/// Destination user identifier
 #[derive(Debug, PartialEq, Clone)]
 pub struct TxToUserId(pub u64);
 
+/// Transaction amount (positive for deposits/transfers, negative for withdrawals)
 #[derive(Debug, PartialEq, Clone)]
 pub struct TxAmount(pub i64);
 
+/// Transaction timestamp (Unix milliseconds)
 #[derive(Debug, PartialEq, Clone)]
 pub struct TxTimestamp(pub u64);
 
+/// Transaction description
 #[derive(Debug, PartialEq, Clone)]
 pub struct TxDescription(pub String);
 
