@@ -333,8 +333,24 @@ pub struct TxAmount(pub i64);
 pub struct TxTimestamp(pub u64);
 
 /// Transaction description
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct TxDescription(pub String);
+
+impl PartialEq for TxDescription {
+    fn eq(&self, other: &Self) -> bool {
+        let normalize = |s: &str| {
+            let trimmed = s.trim();
+
+            if trimmed.starts_with('"') && trimmed.ends_with('"') {
+                trimmed[1..trimmed.len() - 1].to_string()
+            } else {
+                trimmed.to_string()
+            }
+        };
+
+        normalize(&self.0) == normalize(&other.0)
+    }
+}
 
 /// Main transaction structure
 ///

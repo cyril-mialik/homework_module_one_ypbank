@@ -37,11 +37,11 @@ pub const TEXT: &str = "text";
 /// Numeric index for "Deposit" type in binary format
 pub const DEPOSIT_TYPE_INDEX: u8 = 0;
 
-/// Numeric index for "Withdrawal" type in binary format
-pub const WITHDRAWAL_TYPE_INDEX: u8 = 1;
-
 /// Numeric index for "Transfer" type in binary format
-pub const TRANSFER_TYPE_INDEX: u8 = 2;
+pub const TRANSFER_TYPE_INDEX: u8 = 1;
+
+/// Numeric index for "Withdrawal" type in binary format
+pub const WITHDRAWAL_TYPE_INDEX: u8 = 2;
 
 /// Numeric index for "Success" status in binary format
 pub const SUCCESS_STATUS_INDEX: u8 = 0;
